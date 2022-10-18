@@ -2,6 +2,7 @@
     pageEncoding="UTF-8"%>
 <%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
 <%@ taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt"%>
+<%@ taglib uri="http://www.springframework.org/security/tags" prefix="sec" %>
 <%@ include file="../includes/header.jsp" %>
 <style>
  .uploadResult	{
@@ -91,7 +92,14 @@
 					 <!-- 
 							<button data-oper="list" class="btn btn-info" onclick="location.href='/board/list'">List</button>
 						-->
-							<button data-oper="modify" class="btn btn-default">Modify</button>
+						<sec:authentication property="principal" var="pinfo" />
+							
+							<sec:authorize access="isAuthenticated()">
+								<c:if test="${pinfo.username eq board.writer}">						
+									<button data-oper="modify" class="btn btn-default">Modify</button>
+								</c:if>	
+							</sec:authorize>
+						
 							<button data-oper="list" class="btn btn-info" >List</button>
 							
 							<form id='operForm' action="/board/modify" method="get">
@@ -139,7 +147,9 @@
 									 -->	
 									 	<div class="panel-heading">
 											<i class="fa fa-comments fa-fw"></i> Reply
-											<button id='addReplyBtn' class='btn btn-primary btn-xs pull-right'>
+											<sec:authorize access="isAuthenticated()">
+												<button id='addReplyBtn' class='btn btn-primary btn-xs pull-right'>
+											</sec:authorize>
 											New Reply</button>
 										</div>
 										<!-- /.panel-heading 기존에 존재하는 부분  -->
@@ -322,20 +332,36 @@ $(document).ready(function(){
 	var modalRemoveBtn = $('#modalRemoveBtn');
 	var modalRegisterBtn = $('#modalRegisterBtn');
 	
+	var replyer = null;
+	
+	/*  에러아님 */
+	<sec:authorize access="isAuthenticated()">
+		replyer = '<sec:authentication property="principal.username"/>';
+	</sec:authorize>
+		
+		var csrfHeaderName = "${_csrf.headerName}";
+		var csrfTokenValue = "${_csrf.token}";
+		
 	$("#addReplyBtn").on("click",function(e){
 		
 		modal.find("input").val("")
+		modal.find("input[name='replyer']").val(replyer);
 		modalInputReplyDate.closest("div").hide();
 		modal.find("button[id != 'modalCloseBtn']").hide();
-		
-		
 		
         //modalModBtn.show();
         //modalRemoveBtn.show();
 		modalRegisterBtn.show();
 		$(".modal").modal("show");
 	})
-		
+	
+	//Ajax spring security header
+	//ajaxSend는 이용한 코드는 모든 Ajax전송 시 CSRF토큰을 같이 전송
+	$(document).ajaxSend(function(e, xhr, options){
+		xhr.setRequestHeader(csrfHeaderName, csrfTokenValue);
+	});
+	
+	
 	//댓글 추가 클릭
 	modalRegisterBtn.on("click",function(e){
 		
@@ -359,7 +385,27 @@ $(document).ready(function(){
 	//댓글 수정
 	modalModBtn.on("click",function(e){
 		
-		var reply = {rno:modal.data("rno"),reply: modalInputReply.val()};
+		var originalReplyer = modalInputReplyer.val();
+		
+		var reply = {
+				rno:modal.data("rno"),
+				reply: modalInputReply.val(),
+				replyer : originalReplyer
+		};
+		
+		if(!replyer){
+			alert("로그인후 수정이 가능합니다.");
+			modal.modal("hide");
+			return;
+		}
+		
+		console.log("Original Replyer: " + originalReplyer);
+		
+		if(replyer != originalReplyer){
+			alert("자신이 작성한 댓글만 수정이 가능합니다.");
+			modal.modal("hide");
+			return;
+		}
 		
 		replyService.update(reply, function(result){
 			
@@ -367,16 +413,37 @@ $(document).ready(function(){
 			modal.modal("hide");
 			showList(pageNum);
 			
-		})
+		});
 		
-	})
+	});
 	
 	//댓글 삭제
 	modalRemoveBtn.on("click", function(e){
 		
 		var rno = modal.data("rno");
 			
-		replyService.remove(rno, function(result){
+		console.log("RNO: " + rno);
+		console.log("REPLYER: " + replyer);
+		
+		if(!replyer){
+			alert("로그인후 삭제가 가능압니다.");
+			modal.modal("hide");
+			return;
+		}
+		
+		var originalReplyer = modalInputReplyer.val();
+		
+		console.log("Original Replyer: " + originalReplyer); //댓글의 원래 작성자
+		
+		if(replyer != originalReplyer){
+			
+			alert("자신이 작성한 댓글만 삭제가 가능합니다.");
+			modal.modal("hide");
+			return;
+			
+		}
+		
+		replyService.remove(rno, originalReplyer, function(result){
 			
 			alert(result);
 			modal.modal("hide");

@@ -12,8 +12,12 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
 import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
+import org.springframework.web.filter.CharacterEncodingFilter;
+import org.zerock.security.CustomLoginSuccessHandler;
 import org.zerock.security.CustomUserDetailsService;
 
 import lombok.Setter;
@@ -40,30 +44,20 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 		auth.userDetailsService(customUserService()).passwordEncoder(passwordEncoder());
 		
 	}
-	
-/*	
-	@Override
-	public void configure(AuthenticationManagerBuilder auth) throws Exception {
-		
-		log.info("configure..............................");
-		auth.inMemoryAuthentication().withUser("admin").password("{noop}admin").roles("ADMIN");
-		
-		
-//		auth.inMemoryAuthentication().withUser("member").password("{noop}member").roles("MEMBER");
-		// 인코딩 member
-		auth.inMemoryAuthentication().withUser("member").password("$2a$10$q7SkjJnfeOPpzqBphyIK4.MwjD6pGKLUKHekgcLvUfKQBtuzMRBme").roles("MEMBER");
-		
+
+	@Bean
+	public AuthenticationSuccessHandler loginSuccessHandler() {
+		return new CustomLoginSuccessHandler();
 	}
-*/	
 	
-
-	
-	
-	
-
 	
 	@Override
 	public void configure(HttpSecurity http) throws Exception {
+		CharacterEncodingFilter filter =
+				new CharacterEncodingFilter();
+				filter.setEncoding("UTF-8");
+				filter.setForceEncoding(true);
+				http.addFilterBefore(filter, CsrfFilter.class);
 		
 		http.authorizeRequests()
 			.antMatchers("/sample/all").permitAll()
@@ -77,24 +71,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 		// 자동로그인 설정
 		http.rememberMe().key("zerock").tokenRepository(persistentTokenRepository()).tokenValiditySeconds(604800);
 		
+		
 	}
 	
-	/*
-	@Override
-	protected void configure(AuthenticationManagerBuilder auth) throws Exception {
-		log.info("configure JDBC..................................");
-		
-		String queryUser = "select userid, userpw, enabled from tbl_member where userid = ? ";
-		String queryDetails = "select userid, auth from tbl_member_auth where userid = ? ";
-		
-		auth.jdbcAuthentication()
-		.dataSource(dataSource)
-		.passwordEncoder(passwordEncoder())
-		.usersByUsernameQuery(queryUser)
-		.authoritiesByUsernameQuery(queryDetails);
-	}
-	*/
-
 
 	// PasswordEncoder
 	@Bean
